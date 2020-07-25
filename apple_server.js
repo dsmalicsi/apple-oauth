@@ -152,11 +152,15 @@ const getTokens = (query) => {
   if (!Apple.config) {
     throw new ServiceConfiguration.ConfigError("Apple");
   }
+  let clientId = Apple.config.clientId;
+  if (query.methodName === 'native-apple') {
+    clientId = Apple.config.appId // Use app's appId for Cordova app
+  }
   const token = generateToken(
     Apple.config.teamId,
-    Apple.config.clientId,
+    clientId,
     Apple.config.secret,
-    Apple.config.keyId
+    Apple.config.keyId,
   );
 
   let response;
@@ -164,7 +168,7 @@ const getTokens = (query) => {
     response = HTTP.post(endpoint, {
       params: {
         code: query.code,
-        client_id: Apple.config.clientId,
+        client_id: clientId,
         client_secret: token,
         grant_type: "authorization_code",
         redirect_uri: Apple.config.redirectUri,
@@ -216,7 +220,7 @@ const getTokens = (query) => {
 const getServiceData = (query) => getServiceDataFromTokens(getTokens(query));
 OAuth.registerService("apple", 2, null, getServiceData);
 Accounts.registerLoginHandler((query) => {
-  if (query.methodName != "native-apple") {
+  if (query.methodName !== "native-apple") {
     return;
   }
   return getServiceDataFromTokens(getTokens(query), true);
