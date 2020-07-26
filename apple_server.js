@@ -20,10 +20,15 @@ Apple.jwksClient = jwksClient({
  *
  * @param {string} idToken Token to parse
  */
-const verifyAndParseIdentityToken = (idToken) =>
+const verifyAndParseIdentityToken = (idToken, query) =>
   new Promise((resolve, reject) => {
     const decoded = jwt.decode(idToken, { complete: true });
     const { kid, alg } = decoded.header;
+
+    let clientId = Apple.config.clientId;
+    if (query.methodName === 'native-apple') {
+      clientId = Apple.config.appId // Use app's appId for Cordova app
+    }
 
     Apple.jwksClient.getSigningKey(kid, (err, key) => {
       if (err) {
@@ -33,12 +38,12 @@ const verifyAndParseIdentityToken = (idToken) =>
       const signingKey = key.publicKey || key.rsaPublicKey;
       const parsedIdToken = jwt.verify(idToken, signingKey, {
         issuer: Apple.issuer,
-        audience: Apple.config.clientId,
+        audience: clientId,
         algorithms: [alg],
       });
 
       const issOk = parsedIdToken.iss === Apple.issuer;
-      const audOk = parsedIdToken.aud === Apple.config.clientId;
+      const audOk = parsedIdToken.aud === clientId;
       const expOk = parsedIdToken.exp > Math.floor(Date.now() / 1000);
 
       if (issOk && audOk && expOk) {
@@ -56,14 +61,14 @@ const verifyAndParseIdentityToken = (idToken) =>
  *
  * @param {*} tokens tokens and data from apple
  */
-const getServiceDataFromTokens = (tokens, returnAsLoginMethod = false) => {
+const getServiceDataFromTokens = (tokens, returnAsLoginMethod = false, query) => {
   const { accessToken, idToken, expiresIn } = tokens;
   const scopes = "name email";
 
   let parsedIdToken;
 
   try {
-    parsedIdToken = Promise.await(verifyAndParseIdentityToken(idToken));
+    parsedIdToken = Promise.await(verifyAndParseIdentityToken(idToken, query));
   } catch (error) {
     throw new Error(`Apple Id token verification failed. ${error}`);
   }
@@ -84,7 +89,7 @@ const getServiceDataFromTokens = (tokens, returnAsLoginMethod = false) => {
   }
 
   const options = { profile: { email: serviceData.email } };
-  
+
   if(tokens.fullName){
     serviceData.name = tokens.fullName;
     options.profile.name = tokens.fullName;
@@ -96,14 +101,14 @@ const getServiceDataFromTokens = (tokens, returnAsLoginMethod = false) => {
 
   return returnAsLoginMethod
     ? Accounts.updateOrCreateUserFromExternalService(
-        "apple",
-        serviceData,
-        options
-      )
+      "apple",
+      serviceData,
+      options
+    )
     : {
-        serviceData,
-        options,
-      };
+      serviceData,
+      options,
+    };
 };
 
 /**
@@ -208,20 +213,20 @@ const getTokens = (query) => {
       user,
       fullName: query.fullName
         ? [
-            query.fullName.givenName,
-            query.fullName.middleName,
-            query.fullName.familyName,
-          ].join(" ")
+          query.fullName.givenName,
+          query.fullName.middleName,
+          query.fullName.familyName,
+        ].join(" ")
         : "",
     };
   }
 };
 
-const getServiceData = (query) => getServiceDataFromTokens(getTokens(query));
+const getServiceData = (query) => getServiceDataFromTokens(getTokens(query), false, query);
 OAuth.registerService("apple", 2, null, getServiceData);
 Accounts.registerLoginHandler((query) => {
   if (query.methodName !== "native-apple") {
     return;
   }
-  return getServiceDataFromTokens(getTokens(query), true);
+  return getServiceDataFromTokens(getTokens(query), true, query);
 });

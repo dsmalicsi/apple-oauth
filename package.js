@@ -1,7 +1,7 @@
 Package.describe({
   name: 'dsmalicsi:apple-oauth',
   version: '1.3.4',
-  summary: 'Sign in with Apple OAuth flow - fork from bigowl an quave',
+  summary: 'Sign in with Apple OAuth flow - fork from bigowl an quavedev',
   git: 'https://github.com/dsmalicsi/apple-oauth',
 });
 
